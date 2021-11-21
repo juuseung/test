@@ -20,10 +20,10 @@ char *setSchemaLayout(Schema *schema, char *page, int record_size) {
 	page += 4; // Note: 4 is size of int
 	*(int *) page = 1;
 	page += 4;
-	*(int *) page = schema->numAttr;
-	page += 4;
-	*(int *) page = schema->keySize;
-	page += 4;
+	*(int *) page = schema->numAttr; // set number of Attributes
+	page += 4; // Note: numAttr is integer
+	*(int *) page = schema->keySize; // set key size of Attributes
+	page += 4; // Note: keySize is integer
 	for (int i = 0; i < schema->numAttr; i++) {
 		strncpy(page, schema->attrNames[i], record_size);
 		page += record_size;
