@@ -139,20 +139,25 @@ RC insertRecord (RM_TableData *rel, Record *record) {
 	// find the next free slot to insert the new record
 	rid->slot = next_slot(size, holder);
 
-	while (rid->slot == -1) {
-
-		unpinPage(&RM->buffer_pool, &RM->page_handle);
-		rid->page++;
-		pinPage(&RM->buffer_pool, &RM->page_handle, rid->page);
+	for(;;){
+		if(rid->slot != -1){
+			break;
+		}else{
+			unpinPage(&RM->buffer_pool, &RM->page_handle);
+			rid->page++; // increment page
+			pinPage(&RM->buffer_pool, &RM->page_handle, rid->page);
+		}
+		
 		holder = RM->page_handle.data;
-		rid->slot = next_slot(size, holder);
+		rid->slot = next_slot(size, holder); // check if there's a next free slot
 	}
 
 	page_content = holder;
 	page_content += (rid->slot * size);
 	*page_content = '@'; // '@' means it's a empty record
+	char *data_tmp = record->data +1;
 
-	memcpy(++page_content, record->data + 1, size - 1);
+	memcpy(++page_content, data_tmp, size-1);
 
 	// unpin when finish inserting record into page file 
 	// mark dirty because of change to page
@@ -166,12 +171,13 @@ RC insertRecord (RM_TableData *rel, Record *record) {
 
 RC deleteRecord (RM_TableData *rel, RID id) {
 	char *page_content;
+	int page_num = id.page;
 	RM_Manager *RM = (RM_Manager *) rel->mgmtData;
 
 	//pin to change pageFile
-	pinPage(&RM->buffer_pool, &RM->page_handle, id.page);
+	pinPage(&RM->buffer_pool, &RM->page_handle, page_num);
 
-	RM->free_page_idx = id.page;
+	RM->free_page_idx = page_num;
 
 	page_content = RM->page_handle.data; // set variable as the very first location of data of record
 
@@ -191,14 +197,17 @@ RC updateRecord (RM_TableData *rel, Record *record) {
 	char *page_content;
 	RM_Manager *RM = (RM_Manager *) rel->mgmtData;
 	RID id = record->id; // set variable as the id of record
+	int page_num = id.page;
 
 	//pin to change pageFile
-	pinPage(&RM->buffer_pool, & RM->page_handle, record->id.page);
+	pinPage(&RM->buffer_pool, & RM->page_handle, page_num);
 
 	page_content = RM->page_handle.data; // set variable as the very first location of data of record
 	page_content += (id.slot * getRecordSize(rel->schema)); // reset the current location of the data
 	*page_content = '@'; // '@' means it's a empty record
-	memcpy(++page_content, record->data + 1, getRecordSize(rel->schema) - 1);
+	char *data_tmp = record->data +1;
+
+	memcpy(++page_content, data_tmp, getRecordSize(rel->schema) - 1);
 
 	//mark dirty because of change to page
 	//unpin when finish changing record from pageFile
@@ -212,18 +221,20 @@ RC getRecord (RM_TableData *rel, RID id, Record *record) {
 	// get the target record from pageFile
 	char *page_content;
 	char *temp_content;
+	int page_num = id.page;
 	RM_Manager *RM = (RM_Manager *) rel->mgmtData;
 
 	//pin page to work on it
-	pinPage(&RM->buffer_pool, &RM->page_handle, id.page);
+	pinPage(&RM->buffer_pool, &RM->page_handle, page_num);
 
 	page_content = RM->page_handle.data; // set variable as the very first location of data of record 
 	page_content += (id.slot * getRecordSize(rel->schema)); // reset the current location of the data
 
 	if (*page_content == '@'){ // get record data
-		record->id = id;
+		record->id = id; // set record id
 		temp_content = record->data;
-		memcpy(++temp_content, page_content + 1, getRecordSize(rel->schema) - 1);
+		char *data_tmp = page_content + 1;
+		memcpy(++temp_content, data_tmp, getRecordSize(rel->schema) - 1);
 	}
 	else return RC_RM_NO_TUPLE_WITH_GIVEN_RID;
 
@@ -377,18 +388,19 @@ RC freeSchema (Schema *schema) {
 // createRecord creates an empty record and return that pointer back to the user
 RC createRecord (Record **record, Schema *schema) {
 
-	Record *newRecord = (Record *) malloc(sizeof(Record)); // malloc a Record structure
-	int recordSize = getRecordSize(schema); //get the record size
+	Record *record_tmp = (Record *) malloc(sizeof(Record)); // malloc a Record structure
 
-	newRecord->data = (char *) malloc(recordSize); // malloc size of recordSize to variable
-	newRecord->id.page = newRecord->id.slot = -1; // set the page and slot position as -1, which indicates it is a new record
+	record_tmp->data = (char *) malloc(getRecordSize(schema)); // malloc data
+	
+	// set the page and slot position as -1, which indicates it is a new record
+	record_tmp->id.page = -1; 
+	record_tmp->id.slot = -1;
 
-	char *dataptr = newRecord->data; // set variable as the very first location of data of record
-	*dataptr = '!';
+	char *ptr = record_tmp->data; // set variable as the very first location of data of record
+	*ptr = '!';++ptr;
+	*(ptr) = '\0'; // add '\0' at the end of the record
 
-	*(++dataptr) = '\0'; // add '\0' at the end of the record
-
-	*record = newRecord; // set variable as the malloced Record structure having data
+	*record = record_tmp; // set variable as the malloced Record structure having data
 
 	return RC_OK; // createRecord successful
 }
@@ -406,8 +418,9 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value) {
 	char* page_content = getDataPointer(record, schema, attrNum);
 	Value *attr_temp = (Value *) malloc(sizeof(Value)); // malloc a Value structure
 
-	schema->dataTypes[attrNum] = (attrNum == 1) ? 1 : schema->dataTypes[attrNum]; // get the data types from schema
-
+	// get the data types from schema
+	if(attrNum == 1){ schema->dataTypes[attrNum] = 1; }
+	
 	if (schema->dataTypes[attrNum] == DT_FLOAT) getAttrFloat(schema, attrNum, attr_temp, page_content);
 	if (schema->dataTypes[attrNum] == DT_BOOL) getAttrBool(schema, attrNum, attr_temp, page_content);
 	if (schema->dataTypes[attrNum] == DT_STRING) getAttrString(schema, attrNum, attr_temp, page_content);
