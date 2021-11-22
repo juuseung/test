@@ -272,11 +272,12 @@ RC startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond) {
 RC next (RM_ScanHandle *scan, Record *record) {
 	char *data;
 	char *page_content;
-	int size = getRecordSize(schema), temp_scan_count = RM_scan->scan_count;
+	
 	Value *result = (Value *) malloc(sizeof(Value));
 	Schema *schema = scan->rel->schema;
 	RM_Manager *RM_table = scan->rel->mgmtData;
 	RM_Manager *RM_scan = scan->mgmtData;
+	int size = getRecordSize(schema), temp_scan_count = RM_scan->scan_count;
 
 	if (RM_table->num_records == 0) return RC_RM_NO_MORE_TUPLES;
 
