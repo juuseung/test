@@ -50,26 +50,30 @@ Node *split_to_leaf(Value *key, NodeData *ptr, Node *leaf, BTreeManager *tree_ma
 	insertion_index = 0;
 	while (insertion_index < bTreeOrder - 1 && is_less(leaf->keys[insertion_index], key)) insertion_index++;
 
-	for (i = 0, j = 0; i < leaf->num_keys; i++, j++) {
-		if (j == insertion_index) j++;
+	i=0; j=0;
+	while(i<leaf->num_keys){
+		if(j==insertion_index) j++;
 		temp_keys[j] = leaf->keys[i]; temp_pts[j] = leaf->ptrs[i];
+		i++; j++;
 	}
 
 	temp_keys[insertion_index] = key; temp_pts[insertion_index] = ptr;
 
 	leaf->num_keys = 0;
 
-	if ((bTreeOrder - 1) % 2 == 0) split = (bTreeOrder - 1) / 2;
-	else split = (bTreeOrder - 1) / 2 + 1;
+	if((bTreeOrder-1)%2 != 0) split=(bTreeOrder-1)/2 + 1;
+	else split=(bTreeOrder-1)/2;
 
-	for (i = 0; i < split; i++) {
+	i=0;
+	while(i<split){
 		leaf->ptrs[i] = temp_pts[i]; leaf->keys[i] = temp_keys[i];
-		leaf->num_keys++;
+		leaf->num_keys++; i++;
 	}
 
-	for (i = split, j = 0; i < bTreeOrder; i++, j++) {
+	i=split; j=0;
+	while(i<bTreeOrder){
 		new_leaf->ptrs[j] = temp_pts[i]; new_leaf->keys[j] = temp_keys[i];
-		new_leaf->num_keys++;
+		new_leaf->num_keys++; i++; j++;
 	}
 
 	free(temp_pts); free(temp_keys);
@@ -77,8 +81,11 @@ Node *split_to_leaf(Value *key, NodeData *ptr, Node *leaf, BTreeManager *tree_ma
 	new_leaf->ptrs[bTreeOrder - 1] = leaf->ptrs[bTreeOrder - 1];
 	leaf->ptrs[bTreeOrder - 1] = new_leaf;
 
-	for (i = leaf->num_keys; i < bTreeOrder - 1; i++) leaf->ptrs[i] = NULL;
-	for (i = new_leaf->num_keys; i < bTreeOrder - 1; i++) new_leaf->ptrs[i] = NULL;
+	i=leaf->num_keys;j=new_leaf->num_keys;
+	while(i<bTreeOrder-1){
+		leaf->ptrs[i]=NULL; i++;
+		new_leaf->ptrs[j]=NULL; j++;
+	}
 
 	new_leaf->parent = leaf->parent;
 	new_key = (new_leaf->keys[0]);
@@ -101,30 +108,49 @@ Node *split_to_node(BTreeManager *tree_manager, Node *old_node, int left_index, 
 	temp_pts = malloc((bTreeOrder + 1) *sizeof(Node *));
 	if (temp_keys || temp_pts == NULL) exit(RC_INSERT_FAILED);
 
+	i=0; j=0;
+	while(i<old_node->num_keys+1){
+		if(j==left_index+1) j++;
+		temp_pts[j]=old_node->ptrs[i]; i++; j++;
+	}
+
+	i=0; j=0;
+	while(i<old_node->num_keys){
+		if(j==left_index) j++;
+		temp_keys[j]=old_node->keys[i]; i++; j++;
+	}
+
 	temp_keys[left_index] = key, temp_pts[left_index + 1] = right;
 
-	if ((bTreeOrder - 1) % 2 == 0) split = (bTreeOrder - 1) / 2;
-	else split = (bTreeOrder - 1) / 2 + 1;
+	if((bTreeOrder-1)%2 != 0) split=(bTreeOrder-1)/2 + 1;
+	else split=(bTreeOrder-1)/2;
 
 	new_node = empty_node(tree_manager);
 	old_node->num_keys = 0;
 
+	i=0;
+	while(i<split-1){
+		old_node->ptrs[i]=temp_pts[i]; old_node->keys[i] = temp_keys[i];
+		old_node->num_keys++; i++;
+	}
+
 	k_prime = temp_keys[split-1];
 	old_node->ptrs[i] = temp_pts[i];
 
-	for (++i, j = 0; i < bTreeOrder; i++, j++) {
-		new_node->keys[j] = temp_keys[i], new_node->ptrs[j] = temp_pts[i];
-		new_node->num_keys++;
+	++i; j=0;
+	while(i<bTreeOrder){
+		new_node->keys[j]=temp_keys[i]; new_node->ptrs[j]=temp_pts[i];
+		new_node->num_keys++; i++; j++;
 	}
-
 	new_node->ptrs[j] = temp_pts[i];
 
 	free(temp_pts), free(temp_keys);
 
 	new_node->parent = old_node->parent;
 
-	for (i = 0; i <= new_node->num_keys; i++) {
-		child->parent = new_node, child = new_node->ptrs[i];
+	i=0;
+	while(i<new_node->num_keys+1){
+		child->parent=new_node; child=new_node->ptrs[i]; i++;
 	}
 
 	tree_manager->num_entries++;
