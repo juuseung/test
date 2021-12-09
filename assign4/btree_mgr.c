@@ -72,8 +72,9 @@ RC closeBtree(BTreeHandle *tree) {
 
 RC deleteBtree(char *idxId) {
 	RC result;
-	if ((result = destroyPageFile(idxId)) != RC_OK) return result;
-	return RC_OK;
+	result = destroyPageFile(idxId);
+	if(result != RC_OK) return result;
+	else return RC_OK;
 }
 
 RC insertKey(BTreeHandle *tree, Value *key, RID rid) {
@@ -166,16 +167,15 @@ RC nextEntry(BT_ScanHandle *handle, RID *result) {
 
 	if (node == NULL) return RC_IM_NO_MORE_ENTRIES;
 
-	if (key_index < total_keys) {
-		rid = ((NodeData *) node->ptrs[key_index])->rid;
+	if(key_index >= total_keys){
+		if(node->ptrs[bTreeOrder-1] == NULL) return RC_IM_NO_MORE_ENTRIES;
+		node=node->ptrs[bTreeOrder-1];
+		scanmeta->key_index=1; scanmeta->node=node; scanmeta->total_keys=node->num_keys;
+		rid=((NodeData *)node->ptrs[0])->rid;
+	}else{
+		rid=((NodeData *)node->ptrs[key_index])->rid;
 		scanmeta->key_index++;
-	} else {
-		if (node->ptrs[bTreeOrder - 1] == NULL) return RC_IM_NO_MORE_ENTRIES;
-		node = node->ptrs[bTreeOrder - 1];
-		scanmeta->key_index = 1, scanmeta->node = node, scanmeta->total_keys = node->num_keys;
-		rid = ((NodeData *) node->ptrs[0])->rid;
 	}
-
 	*result = rid;
 
 	return RC_OK;
